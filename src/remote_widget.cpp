@@ -6,6 +6,7 @@
 #include "progress_dialog.h"
 #include "transfer_dialog.h"
 #include "utils.h"
+#include <QRegularExpression>
 
 RemoteWidget::RemoteWidget(IconCache *iconCache, const QString &remote,
                            bool isLocal, bool isGoogle, QWidget *parent)
@@ -507,7 +508,7 @@ QString root = isLocal ? "/" : QString();
         return;
       }
 
-      QRegExp re(R"(^(\d+) (\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d)\.\d+ (.+)$)");
+      QRegularExpression re(R"(^(\d+) (\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d)\.\d+ (.+)$)");
 
       QProcess process;
       UseRclonePassword(&process);
@@ -523,11 +524,10 @@ QString root = isLocal ? "/" : QString();
       QObject::connect(&progress, &ProgressDialog::outputAvailable, this,
                        [=](const QString &output) {
                          QTextStream out(file);
-                         out.setCodec("UTF-8");
 
                          for (const auto &line : output.split('\n')) {
-                           if (re.exactMatch(line.trimmed())) {
-                             QStringList cap = re.capturedTexts();
+                           if (re.match(line.trimmed()).hasMatch()) {
+                             QStringList cap = re.match(line.trimmed()).capturedTexts();
 
                              if (txt) {
                                out << cap[3] << '\n';
@@ -557,7 +557,7 @@ QString root = isLocal ? "/" : QString();
              ? settings->setValue("Settings/driveShared", Qt::Checked)
              : settings->setValue("Settings/driveShared", Qt::Unchecked));
 
-        qApp->setActiveWindow(this);
+        QWidget::activateWindow();
         QDir destPath = model->path(parent);
         QString dest = QFileInfo(path.path()).isDir()
                            ? destPath.filePath(path.dirName())

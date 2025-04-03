@@ -2,6 +2,7 @@
 #include "icon_cache.h"
 #include "utils.h"
 #include <algorithm>
+#include <QRegularExpressionMatch>
 
 namespace {
 static void advanceSpinner(QString &text) {
@@ -255,7 +256,7 @@ QVariant ItemModel::data(const QModelIndex &index, int role) const {
 
   if (role == Qt::TextAlignmentRole) {
     if (index.column() == 1) {
-      return Qt::AlignRight + Qt::AlignVCenter;
+      return QVariant(Qt::AlignRight | Qt::AlignVCenter);
     }
     return QVariant();
   }
@@ -487,8 +488,9 @@ void ItemModel::load(const QPersistentModelIndex &parentIndex, Item *parent) {
 
   QObject::connect(lsd, &QProcess::readyRead, this, [=]() {
     while (lsd->canReadLine()) {
-      if (mRegExpFolder.exactMatch(lsd->readLine().trimmed())) {
-        QStringList cap = mRegExpFolder.capturedTexts();
+      QRegularExpressionMatch match = mRegExpFolder.match(lsd->readLine().trimmed());
+      if (match.hasMatch()) {
+        QStringList cap = match.capturedTexts();
 
         Item *child = new Item();
         child->isFolder = true;
@@ -503,8 +505,9 @@ void ItemModel::load(const QPersistentModelIndex &parentIndex, Item *parent) {
 
   QObject::connect(lsl, &QProcess::readyRead, this, [=]() {
     while (lsl->canReadLine()) {
-      if (mRegExpFile.exactMatch(lsl->readLine().trimmed())) {
-        QStringList cap = mRegExpFile.capturedTexts();
+      QRegularExpressionMatch match = mRegExpFile.match(lsl->readLine().trimmed());
+      if (match.hasMatch()) {
+        QStringList cap = match.capturedTexts();
 
         Item *child = new Item();
         child->parent = parent;

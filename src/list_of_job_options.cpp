@@ -78,7 +78,7 @@ QFile *ListOfJobOptions::GetPersistenceFile(QIODevice::OpenModeFlag mode) {
 
     // get data location folder from Qt  - OS dependend
     outputDir =
-        QDir(QStandardPaths::writableLocation(QStandardPaths::DataLocation));
+        QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
   }
 
   if (!outputDir.exists()) {

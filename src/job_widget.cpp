@@ -1,5 +1,6 @@
 #include "job_widget.h"
 #include "utils.h"
+#include <QRegularExpressionMatch>
 
 JobWidget::JobWidget(QProcess *process, const QString &info,
                      const QStringList &args, const QString &source,
@@ -58,23 +59,23 @@ JobWidget::JobWidget(QProcess *process, const QString &info,
   });
 
   QObject::connect(mProcess, &QProcess::readyRead, this, [=]() {
-    QRegExp rxSize(
+    QRegularExpression rxSize(
         R"(^Transferred:\s+(\S+ \S+) \(([^)]+)\)$)"); // Until rclone 1.42
-    QRegExp rxSize2(
+    QRegularExpression rxSize2(
         R"(^Transferred:\s+([0-9.]+)(\S)? \/ (\S+) (\S+), ([0-9%-]+), (\S+ \S+), (\S+) (\S+)$)"); // Starting with rclone 1.43
-    QRegExp rxErrors(R"(^Errors:\s+(\S+)$)");
-    QRegExp rxChecks(R"(^Checks:\s+(\S+)$)"); // Until rclone 1.42
-    QRegExp rxChecks2(
+    QRegularExpression rxErrors(R"(^Errors:\s+(\S+)$)");
+    QRegularExpression rxChecks(R"(^Checks:\s+(\S+)$)"); // Until rclone 1.42
+    QRegularExpression rxChecks2(
         R"(^Checks:\s+(\S+) \/ (\S+), ([0-9%-]+)$)");   // Starting with
                                                         // rclone 1.43
-    QRegExp rxTransferred(R"(^Transferred:\s+(\S+)$)"); // Until rclone 1.42
-    QRegExp rxTransferred2(
+    QRegularExpression rxTransferred(R"(^Transferred:\s+(\S+)$)"); // Until rclone 1.42
+    QRegularExpression rxTransferred2(
         R"(^Transferred:\s+(\S+) \/ (\S+), ([0-9%-]+)$)"); // Starting with
                                                            // rclone 1.43
-    QRegExp rxTime(R"(^Elapsed time:\s+(\S+)$)");
-    QRegExp rxProgress(
+    QRegularExpression rxTime(R"(^Elapsed time:\s+(\S+)$)");
+    QRegularExpression rxProgress(
         R"(^\*([^:]+):\s*([^%]+)% done.+(ETA: [^)]+)$)"); // Until rclone 1.38
-    QRegExp rxProgress2(
+    QRegularExpression rxProgress2(
         R"(\*([^:]+):\s*([^%]+)% \/[a-zA-z0-9.]+, [a-zA-z0-9.]+\/s, (\w+)$)"); // Starting with rclone 1.39
 
     while (mProcess->canReadLine()) {
@@ -103,99 +104,132 @@ JobWidget::JobWidget(QProcess *process, const QString &info,
         continue;
       }
 
-      if (rxSize.exactMatch(line)) {
-        ui.size->setText(rxSize.cap(1));
-        ui.bandwidth->setText(rxSize.cap(2));
-      } else if (rxSize2.exactMatch(line)) {
-        ui.size->setText(rxSize2.cap(1) + " " + rxSize2.cap(2) + "B" + ", " +
-                         rxSize2.cap(5));
-        ui.bandwidth->setText(rxSize2.cap(6));
-        ui.eta->setText(rxSize2.cap(8));
-        ui.totalsize->setText(rxSize2.cap(3) + " " + rxSize2.cap(4));
-      } else if (rxErrors.exactMatch(line)) {
-        ui.errors->setText(rxErrors.cap(1));
-      } else if (rxChecks.exactMatch(line)) {
-        ui.checks->setText(rxChecks.cap(1));
-      } else if (rxChecks2.exactMatch(line)) {
-        ui.checks->setText(rxChecks2.cap(1) + " / " + rxChecks2.cap(2) + ", " +
-                           rxChecks2.cap(3));
-      } else if (rxTransferred.exactMatch(line)) {
-        ui.transferred->setText(rxTransferred.cap(1));
-      } else if (rxTransferred2.exactMatch(line)) {
-        ui.transferred->setText(rxTransferred2.cap(1) + " / " +
-                                rxTransferred2.cap(2) + ", " +
-                                rxTransferred2.cap(3));
-      } else if (rxTime.exactMatch(line)) {
-        ui.elapsed->setText(rxTime.cap(1));
-      } else if (rxProgress.exactMatch(line)) {
-        QString name = rxProgress.cap(1).trimmed();
-
-        auto it = mActive.find(name);
-
-        QLabel *label;
-        QProgressBar *bar;
-        if (it == mActive.end()) {
-          label = new QLabel();
-          label->setText(name);
-
-          bar = new QProgressBar();
-          bar->setMinimum(0);
-          bar->setMaximum(100);
-          bar->setTextVisible(true);
-
-          label->setBuddy(bar);
-
-          ui.progress->addRow(label, bar);
-
-          mActive.insert(name, label);
+      QRegularExpressionMatch match = rxSize.match(line);
+      if (match.hasMatch()) {
+        ui.size->setText(match.captured(1));
+        ui.bandwidth->setText(match.captured(2));
+      } else {
+        match = rxSize2.match(line);
+        if (match.hasMatch()) {
+          ui.size->setText(match.captured(1) + " " + match.captured(2) + "B" +
+                           ", " + match.captured(5));
+          ui.bandwidth->setText(match.captured(6));
+          ui.eta->setText(match.captured(8));
+          ui.totalsize->setText(match.captured(3) + " " + match.captured(4));
         } else {
-          label = it.value();
-          bar = static_cast<QProgressBar *>(label->buddy());
-        }
-
-        bar->setValue(rxProgress.cap(2).toInt());
-        bar->setToolTip(rxProgress.cap(3));
-
-        mUpdated.insert(label);
-      } else if (rxProgress2.exactMatch(line)) {
-        QString name = rxProgress2.cap(1).trimmed();
-
-        auto it = mActive.find(name);
-
-        QLabel *label;
-        QProgressBar *bar;
-        if (it == mActive.end()) {
-          label = new QLabel();
-
-          QString nameTrimmed;
-
-          if (name.length() > 47) {
-            nameTrimmed = name.left(25) + "..." + name.right(19);
+          match = rxErrors.match(line);
+          if (match.hasMatch()) {
+            ui.errors->setText(match.captured(1));
           } else {
-            nameTrimmed = name;
+            match = rxChecks.match(line);
+            if (match.hasMatch()) {
+              ui.checks->setText(match.captured(1));
+            } else {
+              match = rxChecks2.match(line);
+              if (match.hasMatch()) {
+                ui.checks->setText(match.captured(1) + " / " +
+                                   match.captured(2) + ", " +
+                                   match.captured(3));
+              } else {
+                match = rxTransferred.match(line);
+                if (match.hasMatch()) {
+                  ui.transferred->setText(match.captured(1));
+                } else {
+                  match = rxTransferred2.match(line);
+                  if (match.hasMatch()) {
+                    ui.transferred->setText(match.captured(1) + " / " +
+                                            match.captured(2) + ", " +
+                                            match.captured(3));
+                  } else {
+                    match = rxTime.match(line);
+                    if (match.hasMatch()) {
+                      ui.elapsed->setText(match.captured(1));
+                    } else {
+                      match = rxProgress.match(line);
+                      if (match.hasMatch()) {
+                        QString name = match.captured(1).trimmed();
+
+                        auto it = mActive.find(name);
+
+                        QLabel *label;
+                        QProgressBar *bar;
+                        if (it == mActive.end()) {
+                          label = new QLabel();
+                          label->setText(name);
+
+                          bar = new QProgressBar();
+                          bar->setMinimum(0);
+                          bar->setMaximum(100);
+                          bar->setTextVisible(true);
+
+                          label->setBuddy(bar);
+
+                          ui.progress->addRow(label, bar);
+
+                          mActive.insert(name, label);
+                        } else {
+                          label = it.value();
+                          bar = static_cast<QProgressBar *>(label->buddy());
+                        }
+
+                        bar->setValue(match.captured(2).toInt());
+                        bar->setToolTip(match.captured(3));
+
+                        mUpdated.insert(label);
+                      } else {
+                        match = rxProgress2.match(line);
+                        if (match.hasMatch()) {
+                          QString name = match.captured(1).trimmed();
+
+                          auto it = mActive.find(name);
+
+                          QLabel *label;
+                          QProgressBar *bar;
+                          if (it == mActive.end()) {
+                            label = new QLabel();
+
+                            QString nameTrimmed;
+
+                            if (name.length() > 47) {
+                              nameTrimmed =
+                                  name.left(25) + "..." + name.right(19);
+                            } else {
+                              nameTrimmed = name;
+                            }
+
+                            label->setText(nameTrimmed);
+
+                            bar = new QProgressBar();
+                            bar->setMinimum(0);
+                            bar->setMaximum(100);
+                            bar->setTextVisible(true);
+
+                            label->setBuddy(bar);
+
+                            ui.progress->addRow(label, bar);
+
+                            mActive.insert(name, label);
+                          } else {
+                            label = it.value();
+                            bar = static_cast<QProgressBar *>(label->buddy());
+                          }
+
+                          bar->setValue(match.captured(2).toInt());
+                          bar->setToolTip("File name: " + name +
+                                          "\nFile stats" +
+                                          match.captured(0).mid(
+                                              match.captured(0).indexOf(':')));
+
+                          mUpdated.insert(label);
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
-
-          label->setText(nameTrimmed);
-
-          bar = new QProgressBar();
-          bar->setMinimum(0);
-          bar->setMaximum(100);
-          bar->setTextVisible(true);
-
-          label->setBuddy(bar);
-
-          ui.progress->addRow(label, bar);
-
-          mActive.insert(name, label);
-        } else {
-          label = it.value();
-          bar = static_cast<QProgressBar *>(label->buddy());
         }
-
-        bar->setValue(rxProgress2.cap(2).toInt());
-        bar->setToolTip("File name: " + name + "\nFile stats" + rxProgress2.cap(0).mid(rxProgress2.cap(0).indexOf(':')));
-
-        mUpdated.insert(label);
       }
     }
   });

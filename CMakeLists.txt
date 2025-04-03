@@ -1,17 +1,17 @@
+cmake_minimum_required(VERSION 3.10)
 project(rclone-browser)
 
-cmake_minimum_required(VERSION 2.8)
 
 if(WIN32)
   # link automatically to qtmain.lib on Windows
   cmake_policy(SET CMP0020 NEW)
 endif()
 
-find_package(Qt5Widgets REQUIRED)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Network)
 if(WIN32)
-  find_package(Qt5WinExtras REQUIRED)
+  find_package(Qt6WinExtras REQUIRED)
 elseif(APPLE)
-  find_package(Qt5MacExtras REQUIRED)
+  find_package(Qt6MacExtras REQUIRED)
   find_library(COCOA_LIB Cocoa REQUIRED)
 endif()
 
